@@ -14,10 +14,23 @@ class FirebaseService {
   // AUTHENTICATION
   Future<void> signUpWithEmail(String email, String password) async {
     try {
-      await _auth.createUserWithEmailAndPassword(
+      // Create user in Firebase Authentication
+      final userCredential = await _auth.createUserWithEmailAndPassword(
         email: email,
         password: password,
       );
+
+      // Save user details in Firestore 'users' collection
+      if (userCredential.user != null) {
+        await _firestore.collection('users').doc(userCredential.user!.uid).set({
+          'uid': userCredential.user!.uid,
+          'email': email,
+          'displayName': email.split('@')[0], // Username from email
+          'createdAt': FieldValue.serverTimestamp(),
+          'lastLogin': FieldValue.serverTimestamp(),
+          'isActive': true,
+        });
+      }
     } catch (e) {
       throw Exception('Sign up failed: $e');
     }
@@ -25,10 +38,21 @@ class FirebaseService {
 
   Future<void> signInWithEmail(String email, String password) async {
     try {
-      await _auth.signInWithEmailAndPassword(
+      // Sign in with email and password
+      final userCredential = await _auth.signInWithEmailAndPassword(
         email: email,
         password: password,
       );
+
+      // Update last login time in Firestore
+      if (userCredential.user != null) {
+        await _firestore.collection('users').doc(userCredential.user!.uid).update({
+          'lastLogin': FieldValue.serverTimestamp(),
+        }).catchError((e) {
+          // If document doesn't exist, just skip the update
+          print('Could not update login time: $e');
+        });
+      }
     } catch (e) {
       throw Exception('Sign in failed: $e');
     }
